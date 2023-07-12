@@ -2,7 +2,6 @@ import { BingChat } from 'bing-chat-patch';
 import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt';
 import dotenv from 'dotenv';
 import { FileBox } from 'file-box';
-import * as PATH from 'path';
 
 import { Configuration, OpenAIApi } from 'openai';
 import qrcodeTerminal from 'qrcode-terminal';
@@ -13,7 +12,8 @@ import { PuppetPadlocal } from "wechaty-puppet-padlocal";
 import BingDrawClient from './plugin/bing-draw.js';
 import { askDocument, loadDocuments, supportFileType } from './plugin/langchain.js';
 import { getMermaidCode, renderMermaidSVG } from './plugin/mermaid.js';
-import { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, splitStringByLength, textToSpeechUrl, transToEnglish } from './plugin/utils.js';
+import { getMp3Url } from './plugin/neteasecloudmusicapi.js';
+import { hasChinese, imageMessage, pluginSogouEmotion, saveFile, silkEncoder, splitStringByLength, textToSpeechUrl, transToEnglish } from './plugin/utils.js';
 import { OCR, browerGetHtml, chatWithHtml, duckduckgo, extractURL, screenshot } from './plugin/webbrowser.js';
 
 dotenv.config();
@@ -105,70 +105,73 @@ wechaty
     }
   })
   .on('message', async message => {
-    const contact = message.talker();
-    if (contact.id == 'wxid_tr4l3ax1ej0t12') return
-    currentAdminUser = contact.payload.alias === process.env.ADMIN
-    const receiver = message.listener();
-    let content = message.text().trim();
-    const room = message.room();
-    const target = room || contact;
-    const isText = message.type() === wechaty.Message.Type.Text;
-    const isAudio = message.type() === wechaty.Message.Type.Audio;
-    const isFile = message.type() === wechaty.Message.Type.Attachment;
+    try {
+      const contact = message.talker();
+      if (contact.id == 'wxid_tr4l3ax1ej0t12') return
+      currentAdminUser = contact.payload.alias === process.env.ADMIN
+      let content = message.text().trim();
+      const room = message.room();
+      const target = room || contact;
+      const isText = message.type() === wechaty.Message.Type.Text;
+      const isAudio = message.type() === wechaty.Message.Type.Audio;
+      const isFile = message.type() === wechaty.Message.Type.Attachment;
 
-    if (isFile) {
-      const filebox = await message.toFileBox()
-      if (supportFileType(filebox.mediaType)) {
-        await saveFile(filebox)
-        await loadDocuments()
-        await send(room || contact, `${filebox.name} Embeddings 成功`)
-        return
+      if (isFile) {
+        const filebox = await message.toFileBox()
+        if (supportFileType(filebox.mediaType)) {
+          await saveFile(filebox)
+          await loadDocuments()
+          await send(room || contact, `${filebox.name} Embeddings 成功`)
+          return
+        }
       }
-    }
 
-    const topic = target.topic ? await target.topic() : 'none';
-    if (!isAudio && !isText) {
-      return;
-    }
-
-    console.log(`👂 onMessage group:${topic} contact:${contact.payload.name} ${contact.payload.alias} content: ${content}`);
-
-    if (isAudio && currentAdminUser) {
-      // 解析语音转文字
-      try {
-        // fixed const audio = await message.wechaty.puppet.messageFile(message.payload.id);
-        // rawPayload.Content invalid
-        // See: https://github.com/wechaty/puppet-wechat4u/blob/71369a09c1134d55fe9e1379b50b619a6c8a24cc/src/puppet-wechat4u.ts#L671
-        const rawPayload = await wechaty.puppet.messageRawPayload(message.payload.id)
-        const audioFileBox = FileBox.fromStream(
-          (await wechaty.puppet.wechat4u.getVoice(rawPayload.MsgId)).data,
-          `message-${message.payload.id}-audio.sil`,
-        )
-
-        const audioReadStream = Readable.from(audioFileBox.stream);
-        audioReadStream.path = 'conversation.wav';
-        const response = await openai.createTranscription(audioReadStream, 'whisper-1')
-        content = response?.data?.text.trim()
-      } catch (error) {
-        console.error(`💥createTranscription has error: `, error)
+      const topic = target.topic ? await target.topic() : 'none';
+      if (!isAudio && !isText) {
         return;
       }
 
-    }
+      console.log(`👂 onMessage group:${topic} contact:${contact.payload.name} ${contact.payload.alias} content: ${content}`);
 
-    if (room) {
-      try {
-        const self = wechaty.currentUser;
-        if (content.includes(`@${self.payload.name}`)) {
-          content = content.replace(`@${self.payload.name}`, '').trim();
-          await reply(target, content);
+      if (isAudio && currentAdminUser) {
+        // 解析语音转文字
+        try {
+          // fixed const audio = await message.wechaty.puppet.messageFile(message.payload.id);
+          // rawPayload.Content invalid
+          // See: https://github.com/wechaty/puppet-wechat4u/blob/71369a09c1134d55fe9e1379b50b619a6c8a24cc/src/puppet-wechat4u.ts#L671
+          const rawPayload = await wechaty.puppet.messageRawPayload(message.payload.id)
+          const audioFileBox = FileBox.fromStream(
+            (await wechaty.puppet.wechat4u.getVoice(rawPayload.MsgId)).data,
+            `message-${message.payload.id}-audio.sil`,
+          )
+
+          const audioReadStream = Readable.from(audioFileBox.stream);
+          audioReadStream.path = 'conversation.wav';
+          const response = await openai.createTranscription(audioReadStream, 'whisper-1')
+          content = response?.data?.text.trim()
+        } catch (error) {
+          console.error(`💥createTranscription has error: `, error)
+          return;
         }
-      } catch (error) {
-        console.error(error)
+
       }
 
-    } else {
-      await reply(target, content);
+      if (room) {
+        try {
+          const self = wechaty.currentUser;
+          if (content.includes(`@${self.payload.name}`)) {
+            content = content.replace(`@${self.payload.name}`, '').trim();
+            await reply(target, content);
+          }
+        } catch (error) {
+          console.error(error)
+        }
+
+      } else {
+        await reply(target, content);
+      }
+    } catch (error) {
+      console.error(`❌ onMessage: ${error}`)
     }
 
   });
@@ -242,6 +245,10 @@ async function reply(target, content) {
     {
       command: '/screenshot',
       desp: 'screenshot 截图'
+    },
+    {
+      command: '/song',
+      desp: '歌曲 听歌 唱歌'
     },
     {
       command: '/help',
@@ -329,20 +336,8 @@ async function reply(target, content) {
         await send(target, res)
         break;
       case '/speech':
-        let mp3 = await FileBox.fromUrl(await textToSpeechUrl(prompt))
-        await mp3.toFile('input.mp3', true)
-
-        const basePath = process.env.MP32SILK_PATH
-        const ffmpegCommnd = PATH.join(basePath, `ffmpeg -y -i input.mp3 -acodec pcm_s16le -ar 24000 -ac 1 -f s16le output.pcm`)
-        const toSilkCommnd = PATH.join(basePath, `silk_v3_encoder output.pcm output.sil -tencent`)
-
-        await runCommand(ffmpegCommnd)
-        await runCommand(toSilkCommnd)
-        const sil = await FileBox.fromFile('output.sil')
-
-        sil.metadata = {
-          voiceLength: 1000,
-        };
+        const payload = { "url": await textToSpeechUrl(prompt) } // or payload = {"base64":"..."}
+        const sil = await silkEncoder(payload)
         await send(target, sil)
         break;
       case '/search':
@@ -365,6 +360,13 @@ async function reply(target, content) {
         const buffer = await screenshot(prompt)
         console.log(await OCR(buffer))
         await send(target, FileBox.fromBuffer(buffer, `${new Date().getTime()}.png`))
+        break;
+      case '/song':
+        const mp3 = { "url": await getMp3Url(prompt) } // or payload = {"base64":"..."}
+        console.log(mp3)
+        const mp3Message = await silkEncoder(mp3)
+
+        await send(target, mp3Message)
         break;
       case '/help':
         let helpText = keywords.map(keyword => `${keyword.command}   ${keyword.desp}`).join(`\n${'-'.repeat(20)}\n`);

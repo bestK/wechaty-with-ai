@@ -116,5 +116,24 @@ async function runCommand(command) {
     }
 }
 
-export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, splitStringByLength, textToSpeechUrl, transToEnglish };
+async function silkEncoder(params) {
+    const api = await fetch('https://tosilk.zeabur.app/v1/encoder', {
+        body: JSON.stringify(params),
+        method: 'post',
+        headers: { "Content-Type": "application/json" }
+    })
+    const { data } = await api.json()
+    const sil = FileBox.fromBase64(data, `${new Date().getTime()}.sil`)
+    let voiceLength = Number(data.length / 1.8 / 1024 / 2).toFixed(0) * 1
+    if (voiceLength >= 60) {
+        voiceLength = 59
+    }
+    voiceLength = voiceLength * 1000
+    sil.metadata = {
+        voiceLength
+    };
+    return sil
+}
+
+export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkEncoder, splitStringByLength, textToSpeechUrl, transToEnglish };
 
