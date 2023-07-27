@@ -1,6 +1,8 @@
 import { exec } from 'child_process';
 import { FileBox } from 'file-box';
+import * as FS from 'fs';
 import * as PATH from 'path';
+import { Readable } from 'stream';
 import { promisify } from 'util';
 
 function splitStringByLength(str, maxLength) {
@@ -17,6 +19,12 @@ function splitStringByLength(str, maxLength) {
 
 
 function imageMessage(url, ext = 'png') {
+    if (!url || !url.startsWith("http")) return url
+    return FileBox.fromUrl(url, { name: `${new Date().getTime()}.${ext}` })
+}
+
+function videoMessage(url, ext = 'mp4') {
+    if (!url || !url.startsWith("http")) return url
     return FileBox.fromUrl(url, { name: `${new Date().getTime()}.${ext}` })
 }
 
@@ -36,9 +44,16 @@ function hasChinese(str) {
 }
 
 
-async function saveFile(filebox, path = 'resource') {
-    const audioReadStream = Readable.from(filebox.stream);
-    const filePath = PATH.join(path, filebox.name);
+async function saveFile(filebox, folderPath = 'resource') {
+    if (!FS.existsSync(folderPath)) {
+        FS.mkdirSync(folderPath, { recursive: true });
+        console.log(`Folder created: ${folderPath}`);
+    } else {
+        console.log(`Folder already exists: ${folderPath}`);
+    }
+    const audioReadStream = Readable.from(await filebox.toStream());
+
+    const filePath = PATH.join(folderPath, filebox.name);
     const writeStream = FS.createWriteStream(filePath);
 
     audioReadStream.pipe(writeStream);
@@ -49,36 +64,6 @@ async function saveFile(filebox, path = 'resource') {
     });
 }
 
-async function textToSpeechUrl(text) {
-    var apiUrl = 'https://www.text-to-speech.cn/getSpeek.php';
-    var data = {
-        language: '中文（普通话，简体）',
-        voice: 'zh-CN-YunxiNeural',
-        text: text,
-        role: 0,
-        style: 0,
-        styledegree: 1,
-        rate: 0,
-        pitch: 0,
-        kbitrate: 'audio-16khz-32kbitrate-mono-mp3',
-        silence: '',
-        user_id: '',
-        yzm: ''
-    };
-    const randomIp = () => Array(4).fill(0).map((_, i) => Math.floor(Math.random() * 255) + (i === 0 ? 1 : 0)).join('.');
-
-    const api = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'x-forwarded-for': randomIp(),
-        },
-        body: new URLSearchParams(data)
-    })
-    const { code, download } = await api.json()
-    if (code != 200) throw new Error('语音生成失败')
-    return download
-}
 
 async function pluginSogouEmotion(keyword, random = true) {
     try {
@@ -116,7 +101,7 @@ async function runCommand(command) {
     }
 }
 
-async function silkEncoder(params) {
+async function silkEncoder(params, voiceLength) {
     const api = await fetch('https://tosilk.zeabur.app/v1/encoder', {
         body: JSON.stringify(params),
         method: 'post',
@@ -124,16 +109,29 @@ async function silkEncoder(params) {
     })
     const { data } = await api.json()
     const sil = FileBox.fromBase64(data, `${new Date().getTime()}.sil`)
-    let voiceLength = Number(data.length / 1.8 / 1024 / 2).toFixed(0) * 1
-    if (voiceLength >= 60) {
-        voiceLength = 59
+    if (!voiceLength) {
+        voiceLength = Number(data.length / 1.8 / 1024 / 2).toFixed(0) * 1
+        if (voiceLength >= 60) {
+            voiceLength = 59
+        }
+        voiceLength = voiceLength * 1000
     }
-    voiceLength = voiceLength * 1000
+
     sil.metadata = {
         voiceLength
     };
     return sil
 }
 
-export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkEncoder, splitStringByLength, textToSpeechUrl, transToEnglish };
+async function silkDecoder(params) {
+    const api = await fetch('https://tosilk.zeabur.app/v1/decoder', {
+        body: JSON.stringify(params),
+        method: 'post',
+        headers: { "Content-Type": "application/json" }
+    })
+    const { data } = await api.json()
+    const mp3 = FileBox.fromBase64(data, `${new Date().getTime()}.mp3`)
+    return mp3
+}
+export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage };
 

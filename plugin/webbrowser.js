@@ -5,7 +5,7 @@ import { default as fullPageScreenshot } from 'puppeteer-full-page-screenshot';
 
 puppeteer.use(StealthPlugin())
 
-const browser = await puppeteer.connect({
+const browser = async () => await puppeteer.connect({
     headless: true,
     browserWSEndpoint: `wss://chrome.browserless.io/?token=${process.env.BROWSERLESS_TOKEN}`,
 });

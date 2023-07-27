@@ -1091,6 +1091,11 @@ cross-spawn@^7.0.3:
     shebang-command "^2.0.0"
     which "^2.0.1"
 
+crypto-js@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/crypto-js/-/crypto-js-4.1.1.tgz#9e485bcf03521041bd85844786b83fb7619736cf"
+  integrity sha512-o2JlM7ydqd3Qk9CA0L4NL6mTzU2sdx96a+oOfPu8Mkl/PK51vSyoi8/rQ8NknZtk44vq15lmhAj9CIAGwgeWKw==
+
 crypto-random-string@^3.2.0:
   version "3.3.1"
   resolved "https://registry.npmmirror.com/crypto-random-string/-/crypto-random-string-3.3.1.tgz#13cee94cac8001e4842501608ef779e0ed08f82d"
@@ -3798,10 +3803,10 @@ wechaty-grpc@^1.5.2:
     google-protobuf "^3.18.0"
     stronger-typed-streams "^0.2.0"
 
-wechaty-puppet-padlocal@^1.20.1:
-  version "1.20.1"
-  resolved "https://registry.npmmirror.com/wechaty-puppet-padlocal/-/wechaty-puppet-padlocal-1.20.1.tgz#18585bef5d978bf855d1d79da09a0bdf13573914"
-  integrity sha512-vb0SPx3Ezlph4ThW1/bkvPatCj70V9hhmWAGsmW7oCFLJPM9ugp9LWqpVisJYdGwvv3CMYpXo6OazYCEjfYC2g==
+wechaty-puppet-padlocal-unofficial@1.20.4:
+  version "1.20.4"
+  resolved "https://registry.yarnpkg.com/wechaty-puppet-padlocal-unofficial/-/wechaty-puppet-padlocal-unofficial-1.20.4.tgz#4a10a537c8e612cc89c7359331db7a17c27d928a"
+  integrity sha512-mkT+hXrDqSIp+wSg1eoYl63i44C5dvbOT5EnOJk8WkPGY/90dlsIzbZWPecsIY6Rl5sJAni9dzDyzg72jTwCcg==
   dependencies:
     "@types/config" "0.0.41"
     "@types/node-cleanup" "^2.1.2"
@@ -3835,7 +3840,7 @@ wechaty-puppet-service@^1.19.8:
     wechaty-redux "^1.20.2"
     wechaty-token "^1.0.6"
 
-wechaty-puppet-wechat4u@1.14.1, wechaty-puppet-wechat4u@^1.11.1:
+wechaty-puppet-wechat4u@^1.11.1:
   version "1.14.1"
   resolved "https://registry.npmmirror.com/wechaty-puppet-wechat4u/-/wechaty-puppet-wechat4u-1.14.1.tgz#ec5068fc887ed91bf0e9605a59567a7d371f05ea"
   integrity sha512-hJiBRBb0ANhNd9wG1fQu3LnIaNRGGFocKP7eDNVApL8+Mfnsb1/vQVRChHWViCVjZfEKu8W8yJuZebThkh4WmA==

@@ -31,7 +31,7 @@ export default class BingDrawClient {
                 let res = await response.text()
 
                 if (res.toLowerCase().indexOf('this prompt has been blocked') > -1) {
-                    throw new Error('Your prompt has been blocked by Bing. Try to change any bad words and try again.')
+                    // throw new Error('Your prompt has been blocked by Bing. Try to change any bad words and try again.')
                 }
             } catch (_) {
 
@@ -57,9 +57,13 @@ export default class BingDrawClient {
         let redirectUrl = response.headers.get('Location').replace('&nfy=1', '')
         let requestId = redirectUrl.split('id=')[1]
         // 模拟跳转
-        await fetch(`${this.opts.baseUrl}${redirectUrl}`, {
-            headers
-        })
+        try {
+            await fetch(`${this.opts.baseUrl}${redirectUrl}`, {
+                headers
+            })
+        } catch (error) {
+            console.log(error)
+        }
         let pollingUrl = `${this.opts.baseUrl}/images/create/async/results/${requestId}?q=${urlEncodedPrompt}`
         console.log({ pollingUrl })
         console.log('waiting for bing draw results...')
