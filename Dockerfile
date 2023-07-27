@@ -45,7 +45,7 @@ RUN  npm install \
 
 COPY . /app/
 
-#RUN npm install --registry=https://registry.npm.taobao.org/
-CMD npm install replicate \ # <- fix 依赖冲突
+#fix 依赖冲突
+CMD npm install replicate \ 
     &&  node index.js
  
