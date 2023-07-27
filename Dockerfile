@@ -43,8 +43,9 @@ COPY package.json /app/
 RUN  npm install \
     && rm -fr /tmp/* ~/.npm
 
-COPY index.js /app/
+COPY . /app/
 
 #RUN npm install --registry=https://registry.npm.taobao.org/
-
-ENTRYPOINT [ "node", "index.js" ]
+CMD npm install replicate \ # <- fix 依赖冲突
+    &&  node index.js
+ 
