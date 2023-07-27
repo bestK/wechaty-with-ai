@@ -27,7 +27,7 @@ const webVersionApi = new ChatGPTUnofficialProxyAPI({
 
 const gpt4 = new ChatGPTAPI({
   apiKey: process.env.OPENAI_API_KEY,
-  apiBaseUrl: 'https://chimeragpt.adventblocks.cc/api/v1',
+  apiBaseUrl: process.env.OPENAI_BASE_URL,
   completionParams: { model: 'gpt-4' },
   maxModelTokens: 8100,
   systemMessage: "",
@@ -42,7 +42,7 @@ const api_bing = new BingChat({
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
-  basePath: "https://chimeragpt.adventblocks.cc/v1"
+  basePath: process.env.OPENAI_BASE_URL
 });
 
 const openai = new OpenAIApi(configuration);
