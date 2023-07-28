@@ -20,7 +20,6 @@
     "@pinecone-database/pinecone": "^0.1.6",
     "bing-chat-patch": "^0.2.3",
     "chatgpt": "5.2.5",
-    "crypto-js": "^4.1.1",
     "dotenv": "^16.3.1",
     "js-base64": "^3.7.5",
     "langchain": "0.0.118",
@@ -31,6 +30,7 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "puppeteer-full-page-screenshot": "^1.2.2",
     "qrcode-terminal": "^0.12.0",
+    "replicate": "0.12.3",
     "wechaty": "^1.20.2",
     "wechaty-puppet-padlocal-unofficial": "1.20.4"
   }
