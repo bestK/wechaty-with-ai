@@ -12,7 +12,7 @@ const browser = async () => await puppeteer.connect({
 
 async function duckduckgo(searchWord, maxResults = 3) {
     console.log(`search ...`)
-    const url = `https://duckduckgo.anysign.xyz/search?q=${searchWord}&max_results=${maxResults}`
+    const url = `https://search.linkof.link/search?q=${searchWord}&max_results=${maxResults}`
     const api = await fetch(url)
     const res = await api.json()
     return JSON.stringify(res)

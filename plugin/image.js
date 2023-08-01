@@ -1,4 +1,5 @@
 import Replicate from "replicate";
+import { sleep } from "./common.js";
 
 export async function text2ImageStableDiffusion(prompt) {
     try {
@@ -61,4 +62,45 @@ export async function text2ImageByreplicate(prompt) {
         console.error(`/mj has error ${error.stack}`)
         throw error
     }
+}
+
+
+
+export async function midjourney(prompt) {
+    const baseUrlArr = process.env.MJ_BASE_URL.split(",")
+    const index = Math.floor((Math.random() * baseUrlArr.length))
+    const baseUrl = baseUrlArr[index]
+    try {
+        let url = `https://${baseUrl}/mj/submit/imagine`
+        const api = await fetch(url, {
+            body: JSON.stringify({ "prompt": prompt }),
+            method: 'post',
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const res = await api.json()
+        const { code, result, description } = res
+        if (code == 1) {
+            let taskUrl = `https://${baseUrl}/mj/task/${result}/fetch`
+            return await getMjResult(taskUrl)
+        }
+        throw Error(description)
+    } catch (error) {
+        console.log(error)
+        return `https://raster.shields.io/badge/server-${encodeURI(error.message)}-red`
+    }
+}
+
+export async function getMjResult(url) {
+    const api = await fetch(url, {
+        method: "get"
+    });
+    const { status, imageUrl, failReason, progress } = await api.json()
+    console.log(`progress:${progress} url:${url}`)
+    if (status == "FAILURE") throw Error(failReason)
+    if (status != 'SUCCESS') {
+        await sleep(3000)
+        return await getMjResult(url)
+    }
+    return imageUrl
 }

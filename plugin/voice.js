@@ -2,6 +2,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 const role = { BV210_streaming: '西安佟掌柜', BV213_streaming: '广西表哥', BV021_streaming: '东北老铁', "熊二": "zh_male_xionger" }
 
+const hack_role = { "熊二": "5ea5a236a0b67106", "团宝": "4fc7ec533470923e", "顾姐": "6bc33dfb8f3df644" }
+
+let selected_hack_role = "熊二"
+
 function randomVoiceType() {
     const voiceRoles = Object.keys(role)
     let index = Math.floor((Math.random() * voiceRoles.length))
@@ -49,9 +53,15 @@ export async function getByteDanceTTS(ttsTxt = '字节跳动语音合成') {
     }
 }
 
+export function setHackRole(name) {
+    if (!hack_role[name]) return "false"
+    selected_hack_role = name
+    return "true"
+}
 
-export async function hackByteDanceTTS(prompt) {
-    const body = JSON.stringify({ "text": prompt, "format": "sil" })
+export async function hackByteDanceTTS(prompt, zbid) {
+    if (!zbid) zbid = hack_role[selected_hack_role]
+    const body = JSON.stringify({ "text": prompt, "format": "sil", "zbid": zbid })
 
     const api = await fetch(`https://douyin.zeabur.app/tts`, {
         method: 'post',

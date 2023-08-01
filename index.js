@@ -9,13 +9,13 @@ import { WechatyBuilder } from 'wechaty';
 import { PuppetPadlocal } from "wechaty-puppet-padlocal-unofficial";
 import BingDrawClient from './plugin/bing-draw.js';
 import { code_innerpeter_run } from './plugin/code-inerpeter.js';
-import { text2ImageByreplicate, text2ImageStableDiffusion } from "./plugin/image.js";
+import { midjourney, text2ImageByreplicate, text2ImageStableDiffusion } from "./plugin/image.js";
 import { askDocument, deleteAllVector, loadDocuments, supportFileType } from './plugin/langchain.js';
 import { getMermaidCode, renderMermaidSVG } from './plugin/mermaid.js';
 import { getMp3Url } from './plugin/neteasecloudmusicapi.js';
-import { hasChinese, imageMessage, pluginSogouEmotion, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage } from './plugin/utils.js';
+import { hasChinese, imageMessage, pluginSogouEmotion, retry, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage } from './plugin/utils.js';
 import { text2VideoByStableDiffusion } from "./plugin/video.js";
-import { hackByteDanceTTS } from './plugin/voice.js';
+import { hackByteDanceTTS, setHackRole } from './plugin/voice.js';
 import { browerGetHtml, chatWithHtml, duckduckgo, extractURL } from './plugin/webbrowser.js';
 
 dotenv.config();
@@ -34,6 +34,7 @@ const gpt4 = new ChatGPTAPI({
   debug: false,
 });
 
+let lastGpt4UsageTime
 
 
 const api_bing = new BingChat({
@@ -50,7 +51,7 @@ const openai = new OpenAIApi(configuration);
 
 const api_map = { "webVersionApi": webVersionApi, "gpt4": gpt4, "bing": api_bing }
 
-let currentAI = "gpt4"
+let defaultAI = "gpt4"
 
 let currentAdminUser = false
 
@@ -94,85 +95,82 @@ wechaty
     }
   })
   .on('message', async message => {
+    let target
     try {
-      const referMessagePayload = message.payload?.referMessagePayload
-      if (referMessagePayload) {
+      await retry(async () => {
+        const referMessagePayload = message.payload?.referMessagePayload
+        if (referMessagePayload) {
 
-        const referMessage = await getRefMsgFileBox(referMessagePayload)
+          const referMessage = await getRefMsgFileBox(referMessagePayload)
 
-        console.log(JSON.stringify(referMessage))
+          console.log(JSON.stringify(referMessage))
 
-      }
+        }
 
-      if (message.self()) {
-        // Don't deal with message from yourself.
-        return
-      }
-
-      const contact = message.talker();
-      currentAdminUser = contact.payload.alias === process.env.ADMIN
-      let content = message.text().trim();
-      const room = message.room();
-      const target = room || contact;
-      const isText = message.type() === wechaty.Message.Type.Text;
-      const isAudio = message.type() === wechaty.Message.Type.Audio;
-      const isFile = message.type() === wechaty.Message.Type.Attachment;
-
-      if (isFile) {
-        const filebox = await message.toFileBox()
-        if (supportFileType(filebox.mediaType)) {
-          await saveFile(filebox)
-          await deleteAllVector(process.env.PINECONE_INDEX)
-          await loadDocuments(process.env.PINECONE_INDEX)
-          await send(room || contact, `${filebox.name} Embeddings 成功`)
+        if (message.self()) {
+          // Don't deal with message from yourself.
           return
         }
-      }
 
-      const topic = target.topic ? await target.topic() : 'none';
+        const contact = message.talker();
+        currentAdminUser = contact.payload.alias === process.env.ADMIN
+        let content = message.text().trim();
+        const room = message.room();
+        target = room || contact;
+        const isText = message.type() === wechaty.Message.Type.Text;
+        const isAudio = message.type() === wechaty.Message.Type.Audio;
+        const isFile = message.type() === wechaty.Message.Type.Attachment;
 
-      if ('Wechaty Contributors' == topic) return
+        if (isFile) {
+          const filebox = await message.toFileBox()
+          if (supportFileType(filebox.mediaType)) {
+            await saveFile(filebox)
+            await deleteAllVector(process.env.PINECONE_INDEX)
+            await loadDocuments(process.env.PINECONE_INDEX)
+            await send(room || contact, `${filebox.name} Embeddings 成功`)
+            return
+          }
+        }
 
-      if (!isAudio && !isText) {
-        return;
-      }
+        const topic = target.topic ? await target.topic() : 'none';
 
-      console.log(`👂 onMessage group:${topic} contact:${contact.payload.name} ${contact.payload.alias} content: ${content}`);
+        if ('Wechaty Contributors' == topic) return
 
-      if (isAudio && currentAdminUser) {
-        // 解析语音转文字
-        try {
-          const audioFileBox = await message.toFileBox()
-          const mp3 = await silkDecoder({ base64: await audioFileBox.toBase64() })
-          await mp3.toFile(mp3.name)
-          const response = await openai.createTranscription(FS.createReadStream(mp3.name), 'whisper-1')
-          content = response?.data?.text.trim()
-          FS.unlinkSync(mp3.name)
-        } catch (error) {
-          console.error(`💥createTranscription has error: `, error)
+        if (!isAudio && !isText) {
           return;
         }
 
-      }
+        console.log(`👂 onMessage group:${topic} contact:${contact.payload.name} ${contact.payload.alias} content: ${content}`);
 
-      if (room) {
-        try {
+        if (isAudio && currentAdminUser) {
+          // 解析语音转文字
+          try {
+            const audioFileBox = await message.toFileBox()
+            const mp3 = await silkDecoder({ base64: await audioFileBox.toBase64() })
+            await mp3.toFile(mp3.name)
+            const response = await openai.createTranscription(FS.createReadStream(mp3.name), 'whisper-1')
+            content = response?.data?.text.trim()
+            FS.unlinkSync(mp3.name)
+          } catch (error) {
+            console.error(`💥createTranscription has error: `, error)
+            return;
+          }
+
+        }
+
+        if (room) {
           const isMentionMe = await message.mentionSelf()
           if (isMentionMe) {
             content = await message.mentionText()
             await reply(target, content);
           }
-        } catch (error) {
-          console.error(error)
+        } else {
+          await reply(target, content);
         }
-
-      } else {
-        await reply(target, content);
-      }
+      })
     } catch (error) {
-      await wechaty.say(`❌❌❌`);
-      await wechaty.say(message);
-      await wechaty.say(error.stack);
+      await wechaty.say(`❌❌❌\n${message}\n${error.stack}`);
+      await send(target, "啊啊啊 出了点小毛病，你再试一下吧");
       console.error(`❌ onMessage: ${error} ${error.stack} \n log send self done.`)
     }
 
@@ -209,7 +207,7 @@ async function reply(target, content) {
   if (url) {
     const html = await browerGetHtml(url)
     prompt = prompt.replace(url, '')
-    const res = await chatWithHtml(webVersionApi, html, prompt)
+    const res = await chatWithHtml(ai(), html, prompt)
     await send(target, res)
     return
   }
@@ -269,6 +267,10 @@ async function reply(target, content) {
       desp: 'code innerpeter run'
     },
     {
+      command: '/role',
+      desp: 'role'
+    },
+    {
       command: '/help',
       desp: '帮助信息'
     },
@@ -314,8 +316,8 @@ async function reply(target, content) {
           await send(target, `${temp_ai} not found`)
           break;
         }
-        currentAI = temp_ai
-        await send(target, `ok ${currentAI}`)
+        defaultAI = temp_ai
+        await send(target, `ok ${defaultAI}`)
         break;
       case '/画图':
         if (hasChinese(prompt)) {
@@ -325,15 +327,10 @@ async function reply(target, content) {
           userToken: process.env.BING_COOKIE,
           baseUrl: `https://${process.env.BING_HOST}`
         })
-
-        try {
-          await client.getImages(prompt, target)
-        } catch (err) {
-          await send(target, '绘图失败：' + err)
-        }
+        await client.getImages(prompt, target)
         break
       case '/mj':
-        await send(target, imageMessage(await text2ImageByreplicate(prompt)))
+        await send(target, imageMessage(await midjourney(prompt)))
         break
       case '/sd':
         await send(target, imageMessage(await text2ImageStableDiffusion(prompt)))
@@ -372,7 +369,7 @@ async function reply(target, content) {
       case '/song':
         const mp3 = { "url": await getMp3Url(prompt) } // or payload = {"base64":"..."}
         console.log(mp3)
-        const mp3Message = await silkEncoder(mp3, 1)
+        const mp3Message = await silkEncoder(mp3, 59)
 
         await send(target, mp3Message)
         break;
@@ -390,7 +387,9 @@ async function reply(target, content) {
             await send(target, FileBox.fromBase64(content, name));
           }
         }
-
+        break;
+      case '/role':
+        await send(target, setHackRole(prompt))
         break;
       default:
         await chatgptReply(target, prompt);
@@ -401,30 +400,30 @@ async function reply(target, content) {
 }
 
 async function chatgptReply(target, prompt) {
-  let response = imageMessage('https://img02.sogoucdn.com/app/a/100520021/87DEAE7BAACE15B8CA451FC2645D6B3E', 'gif')
-  try {
-    let opts = {};
-    // conversation
-    let conversation = conversationPool.get(target.id);
-    if (conversation) {
-      opts = conversation;
-    }
-    opts.timeoutMs = 2 * 60 * 1000;
 
-    let res = await ai().sendMessage(prompt, opts);
-    response = res.text;
-    console.log(`👽️ contact: ${target} response: ${response}`);
-    conversation = {
-      conversationId: res.conversationId,
-      parentMessageId: res.id,
-    };
-    conversationPool.set(target.id, conversation);
-  } catch (e) {
-    response = '啊啊啊 出了点小毛病，你再试一下吧';
-    console.error(e);
+  let opts = {};
+  // conversation
+  let conversation = conversationPool.get(target.id);
+  if (conversation) {
+    opts = conversation;
+  }
+  opts.timeoutMs = 2 * 60 * 1000;
+  let res = { text: "" }
+  try {
+    res = await ai().sendMessage(prompt, opts);
+  } catch (error) {
+    res.text = error.message
   }
 
-  const voiceReply = (new Date().getTime() % 10) > 3
+  const response = res.text;
+  console.log(`👽️ contact: ${target} response: ${response}`);
+  conversation = {
+    conversationId: res.conversationId,
+    parentMessageId: res.id,
+  };
+  conversationPool.set(target.id, conversation);
+
+  const voiceReply = Math.random() < 0.5
   if (voiceReply) {
     await reply(target, `/speech ${response}`)
     return
@@ -468,7 +467,7 @@ async function naturalLanguageToCommand(nl, keywords) {
       
   `
 
-  const { text } = await ai().sendMessage(prompt)
+  const { text } = await ai('webVersionApi').sendMessage(prompt)
   let command = {}
   try {
     const regex = /\{.*?\}/;
@@ -490,6 +489,16 @@ async function naturalLanguageToCommand(nl, keywords) {
 }
 
 
-function ai() {
-  return api_map[currentAI]
+function ai(id) {
+  if ((id == "gpt4" || defaultAI == "gpt4") && canUseGpt4()){
+    return api_map["gpt4"]
+  }
+  const currentAI = id || defaultAI
+  return api_map(currentAI) 
+}
+
+function canUseGpt4() {
+  const now = Date.now();
+  const minuteInMillis = 60 * 1000; // 1 minute in milliseconds
+  return !lastGpt4UsageTime || now - lastGpt4UsageTime >= minuteInMillis;
 }

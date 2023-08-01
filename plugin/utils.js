@@ -114,12 +114,14 @@ async function silkEncoder(params, voiceLength) {
         if (voiceLength >= 60) {
             voiceLength = 59
         }
-        voiceLength = voiceLength * 1000
     }
+
+    voiceLength = voiceLength * 1000
 
     sil.metadata = {
         voiceLength
     };
+
     return sil
 }
 
@@ -133,5 +135,26 @@ async function silkDecoder(params) {
     const mp3 = FileBox.fromBase64(data, `${new Date().getTime()}.mp3`)
     return mp3
 }
-export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage };
+
+
+function retry(fn, retriesLeft = 3, interval = 3000) {
+    return new Promise((resolve, reject) => {
+      fn()
+        .then(resolve)
+        .catch((error) => {
+          console.log(error,'\nretry...')  
+          setTimeout(() => {
+            if (retriesLeft === 1) {
+              // 如果重试次数已用完，那么reject
+              reject(`maximum retries exceeded ${error}`);
+              return;
+            }
+  
+            // 如果还有重试次数，那么再次尝试
+            retry(fn, retriesLeft - 1, interval).then(resolve, reject);
+          }, interval)
+        });
+    });
+  }
+export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage ,retry};
 
