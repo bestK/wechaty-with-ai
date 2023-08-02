@@ -1,4 +1,5 @@
 import { BingChat } from 'bing-chat-patch';
+import './plugin/global.js'
 import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt';
 import dotenv from 'dotenv';
 import { FileBox } from 'file-box';
@@ -17,6 +18,7 @@ import { hasChinese, imageMessage, pluginSogouEmotion, retry, saveFile, silkDeco
 import { text2VideoByStableDiffusion } from "./plugin/video.js";
 import { hackByteDanceTTS, setHackRole } from './plugin/voice.js';
 import { browerGetHtml, chatWithHtml, duckduckgo, extractURL } from './plugin/webbrowser.js';
+import { keyProvider } from './plugin/openaikey.js';
 
 dotenv.config();
 
@@ -34,8 +36,13 @@ const gpt4 = new ChatGPTAPI({
   debug: false,
 });
 
-let lastGpt4UsageTime
+const gpt3 = new ChatGPTAPI({
+  apiKey: random(await keyProvider()),
+  completionParams: { model: 'gpt-3.5-turbo-16k' },
+  maxModelTokens: 2048
+})
 
+let lastGpt4UsageTime
 
 const api_bing = new BingChat({
   cookie: process.env.BING_COOKIE,
@@ -49,9 +56,9 @@ const configuration = new Configuration({
 const openai = new OpenAIApi(configuration);
 
 
-const api_map = { "webVersionApi": webVersionApi, "gpt4": gpt4, "bing": api_bing }
+const api_map = { "webVersionApi": webVersionApi, "gpt3": gpt3, "gpt4": gpt4, "bing": api_bing }
 
-let defaultAI = "gpt4"
+let defaultAI = "gpt3"
 
 let currentAdminUser = false
 
@@ -207,7 +214,7 @@ async function reply(target, content) {
   if (url) {
     const html = await browerGetHtml(url)
     prompt = prompt.replace(url, '')
-    const res = await chatWithHtml(ai(), html, prompt)
+    const res = await chatWithHtml(await llm(), html, prompt)
     await send(target, res)
     return
   }
@@ -330,7 +337,7 @@ async function reply(target, content) {
         await client.getImages(prompt, target)
         break
       case '/mj':
-        await send(target, imageMessage(await midjourney(prompt)))
+        await send(target, imageMessage(await midjourney(prompt, target)))
         break
       case '/sd':
         await send(target, imageMessage(await text2ImageStableDiffusion(prompt)))
@@ -354,13 +361,13 @@ async function reply(target, content) {
       case '/search':
         const searchResult = await duckduckgo(prompt)
         if (searchResult) {
-          const res = await chatWithHtml(ai(), searchResult, prompt);
+          const res = await chatWithHtml(await llm(), searchResult, prompt);
           await send(target, res)
         }
         break;
 
       case '/流程图':
-        const code = await getMermaidCode(ai(), prompt)
+        const code = await getMermaidCode(await llm(), prompt)
         const svg = renderMermaidSVG(code)
         await send(target, svg)
         const editUrl = `https://mermaid-js.github.io/mermaid-live-editor/#/edit/${svg.remoteUrl.split('https://mermaid.ink/img/')[1]}`
@@ -410,7 +417,8 @@ async function chatgptReply(target, prompt) {
   opts.timeoutMs = 2 * 60 * 1000;
   let res = { text: "" }
   try {
-    res = await ai().sendMessage(prompt, opts);
+    const api = await llm()
+    res = await api.sendMessage(prompt, opts);
   } catch (error) {
     res.text = error.message
   }
@@ -466,8 +474,8 @@ async function naturalLanguageToCommand(nl, keywords) {
       Helpful Answer:
       
   `
-
-  const { text } = await ai('webVersionApi').sendMessage(prompt)
+  const api = await llm('webVersionApi')
+  const { text } = await api.sendMessage(prompt)
   let command = {}
   try {
     const regex = /\{.*?\}/;
@@ -489,12 +497,16 @@ async function naturalLanguageToCommand(nl, keywords) {
 }
 
 
-function ai(id) {
-  if ((id == "gpt4" || defaultAI == "gpt4") && canUseGpt4()){
+async function llm(id) {
+  if ((id == "gpt4" || defaultAI == "gpt4") && canUseGpt4()) {
     return api_map["gpt4"]
   }
   const currentAI = id || defaultAI
-  return api_map(currentAI) 
+  if (currentAI == 'gpt3') {
+    const keys = await keyProvider()
+    gpt3.apiKey = random(keys)
+  }
+  return api_map[currentAI]
 }
 
 function canUseGpt4() {

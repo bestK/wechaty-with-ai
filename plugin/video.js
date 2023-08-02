@@ -1,6 +1,3 @@
-import { SDFetchForResult } from "./common.js";
-
-
 export async function text2VideoByStableDiffusion(prompt) {
     try {
         const bodyInfo = JSON.stringify({

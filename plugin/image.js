@@ -1,5 +1,5 @@
 import Replicate from "replicate";
-import { sleep } from "./common.js";
+import { sendWechatMessage } from "./global.js";
 
 export async function text2ImageStableDiffusion(prompt) {
     try {
@@ -64,9 +64,7 @@ export async function text2ImageByreplicate(prompt) {
     }
 }
 
-
-
-export async function midjourney(prompt) {
+export async function midjourney(prompt, wechat) {
     const baseUrlArr = process.env.MJ_BASE_URL.split(",")
     const index = Math.floor((Math.random() * baseUrlArr.length))
     const baseUrl = baseUrlArr[index]
@@ -80,11 +78,14 @@ export async function midjourney(prompt) {
 
         const res = await api.json()
         const { code, result, description } = res
+
         if (code == 1) {
+            await sendWechatMessage(wechat, `任务提交成功:${result}`)
             let taskUrl = `https://${baseUrl}/mj/task/${result}/fetch`
             return await getMjResult(taskUrl)
         }
-        throw Error(description)
+        
+        throw Error(`任务：${result} ${description}`)
     } catch (error) {
         console.log(error)
         return `https://raster.shields.io/badge/server-${encodeURI(error.message)}-red`

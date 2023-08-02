@@ -17,25 +17,3 @@ export async function getMp3Url(keyword) {
     const url = await getSong(id)
     return url
 }
-
-async function post(url, params) {
-    const api = await fetch(url, {
-        body: JSON.stringify(params),
-        method: 'post',
-        headers: { "Content-Type": "application/json" }
-    })
-    const res = await api.json()
-    return res
-}
-
-async function get(url) {
-    const api = await fetch(url, {
-        headers:
-        {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-        }
-    })
-    const res = await api.json()
-    return res
-}
