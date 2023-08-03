@@ -97,7 +97,8 @@ export async function midjourney(prompt, wechat) {
 
 export async function getMjResult(url) {
     const api = await fetch(url, {
-        method: "get"
+        method: "get",
+        headers: { "mj-api-secret": process.env.MJ_API_KEY }
     });
     const { status, imageUrl, failReason, progress } = await api.json()
     console.log(`progress:${progress} url:${url}`)
