@@ -25,7 +25,8 @@ dotenv.config();
 const chatgpt = new ChatGPTAPI({
   apiKey: random(await keyProvider()),
   completionParams: { model: 'gpt-3.5-turbo-16k' },
-  maxModelTokens: 2048
+  maxModelTokens: 2048,
+  systemMessage: ""
 })
 
 const openai = new OpenAIApi(new Configuration({

@@ -18,18 +18,15 @@ async function duckduckgo(searchWord, maxResults = 3) {
     return JSON.stringify(res)
 }
 
-async function extractDuckDuckgo(ai, searchResult, originPrompt) {
-    const prompt = `今天是${new Date()} 我希望你在下面的JSON数组中到与问题最相关的json节点，不要更正,不要加其他任何内容
+async function extractDuckDuckgo(ai, searchResult, prompt) {
+    const systemPrompt = `今天是${new Date()} 我希望你在下面的JSON数组中到与问题最相关的json节点，不要更正,不要加其他任何内容
 
     ### JSON开始
     ${JSON.stringify(searchResult)}
     ### JSON结束
     
     Question: 示例问题 
-    Helpful Answer: {"body": "","href": "","title": ""}
-            
-    Question:  ${originPrompt}
-    Helpful Answer:`
+    Helpful Answer: {"body": "","href": "","title": ""}`
 
     let result = {
         "body": null,
@@ -38,8 +35,7 @@ async function extractDuckDuckgo(ai, searchResult, originPrompt) {
     }
 
     try {
-        const { text } = await ai.sendMessage(prompt)
-
+        const { text } = await ai.sendMessage(prompt, { systemMessage: systemPrompt })
         result = JSON.parse(text)
     } catch (error) {
         console.log(`extractDuckDuckgo has error:${error}`)
@@ -80,7 +76,7 @@ async function chatWithHtml(ai, searchResult, originPrompt) {
         if (prompt.length > 4096) {
             return searchResult
         }
-        const { text } = await ai.sendMessage(prompt)
+        const { text } = await ai.sendMessage(prompt, { systemMessage: "" })
         return text
     } catch (error) {
         console.error(`chatWithHtml has error:${error}`)
