@@ -2,14 +2,12 @@
 import { FileBox } from 'file-box'
 import * as Base64 from 'js-base64'
 
-async function getMermaidCode(ai, nl) {
-    const prompt = `你是一名助手，帮助用户用 Mermaid 构建图表。
+async function getMermaidCode(ai, prompt) {
+    const systemPrompt = `你是一名助手，帮助用户用 Mermaid 构建图表。
     您只需要返回输出的 Mermaid 代码块。
     不要输出任何描述，不使用 markdown
-    Question:  ${nl}
-    Helpful Answer:
     `
-    const { text } = await ai.sendMessage(prompt)
+    const { text } = await ai.sendMessage(prompt, { systemMessage: systemPrompt })
 
     return text
 }

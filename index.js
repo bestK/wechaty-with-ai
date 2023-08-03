@@ -1,6 +1,4 @@
-import { BingChat } from 'bing-chat-patch';
-import './plugin/global.js'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt';
+import { ChatGPTAPI } from 'chatgpt';
 import dotenv from 'dotenv';
 import { FileBox } from 'file-box';
 import * as FS from 'fs';
@@ -10,55 +8,30 @@ import { WechatyBuilder } from 'wechaty';
 import { PuppetPadlocal } from "wechaty-puppet-padlocal-unofficial";
 import BingDrawClient from './plugin/bing-draw.js';
 import { code_innerpeter_run } from './plugin/code-inerpeter.js';
-import { midjourney, text2ImageByreplicate, text2ImageStableDiffusion } from "./plugin/image.js";
+import { KEYWORDS } from './plugin/definevar.js';
+import './plugin/global.js';
+import { midjourney, text2ImageStableDiffusion } from "./plugin/image.js";
 import { askDocument, deleteAllVector, loadDocuments, supportFileType } from './plugin/langchain.js';
 import { getMermaidCode, renderMermaidSVG } from './plugin/mermaid.js';
 import { getMp3Url } from './plugin/neteasecloudmusicapi.js';
-import { hasChinese, imageMessage, pluginSogouEmotion, retry, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage } from './plugin/utils.js';
+import { keyProvider } from './plugin/openaikey.js';
+import { hasChinese, imageMessage, pluginSogouEmotion, promptToCommand, retry, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage } from './plugin/utils.js';
 import { text2VideoByStableDiffusion } from "./plugin/video.js";
 import { hackByteDanceTTS, setHackRole } from './plugin/voice.js';
 import { browerGetHtml, chatWithHtml, duckduckgo, extractURL } from './plugin/webbrowser.js';
-import { keyProvider } from './plugin/openaikey.js';
 
 dotenv.config();
 
-const webVersionApi = new ChatGPTUnofficialProxyAPI({
-  accessToken: process.env.OPENAI_ACCESS_TOKEN,
-  apiReverseProxyUrl: 'https://ai.fakeopen.com/api/conversation',
-});
-
-const gpt4 = new ChatGPTAPI({
-  apiKey: process.env.OPENAI_API_KEY,
-  apiBaseUrl: process.env.OPENAI_BASE_URL,
-  completionParams: { model: 'gpt-4' },
-  maxModelTokens: 8100,
-  systemMessage: "",
-  debug: false,
-});
-
-const gpt3 = new ChatGPTAPI({
+const chatgpt = new ChatGPTAPI({
   apiKey: random(await keyProvider()),
   completionParams: { model: 'gpt-3.5-turbo-16k' },
   maxModelTokens: 2048
 })
 
-let lastGpt4UsageTime
+const openai = new OpenAIApi(new Configuration({
+  apiKey: random(await keyProvider()),
+}));
 
-const api_bing = new BingChat({
-  cookie: process.env.BING_COOKIE,
-})
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-  basePath: process.env.OPENAI_BASE_URL
-});
-
-const openai = new OpenAIApi(configuration);
-
-
-const api_map = { "webVersionApi": webVersionApi, "gpt3": gpt3, "gpt4": gpt4, "bing": api_bing }
-
-let defaultAI = "gpt3"
 
 let currentAdminUser = false
 
@@ -141,15 +114,13 @@ wechaty
 
         const topic = target.topic ? await target.topic() : 'none';
 
-        if ('Wechaty Contributors' == topic) return
-
         if (!isAudio && !isText) {
           return;
         }
 
         console.log(`👂 onMessage group:${topic} contact:${contact.payload.name} ${contact.payload.alias} content: ${content}`);
 
-        if (isAudio && currentAdminUser) {
+        if (isAudio) {
           // 解析语音转文字
           try {
             const audioFileBox = await message.toFileBox()
@@ -214,90 +185,26 @@ async function reply(target, content) {
   if (url) {
     const html = await browerGetHtml(url)
     prompt = prompt.replace(url, '')
-    const res = await chatWithHtml(await llm(), html, prompt)
+    const res = await chatWithHtml(chatgpt, html, prompt)
     await send(target, res)
     return
   }
 
-
-  const keywords = [
-    {
-      command: '/c',
-      desp: 'AI对话，群聊时 @ 即可'
-    },
-    {
-      command: '/表情包',
-      desp: '搜狗表情包'
-    },
-    {
-      command: '/enable',
-      desp: '切换 AI 接口，需要管理员权限'
-    },
-    {
-      command: '/画图',
-      desp: 'bing 画图'
-    },
-    {
-      command: '/mj',
-      desp: 'mdjrny-v4 风格的画图'
-    },
-    {
-      command: '/sd',
-      desp: 'stableDiffusion 画图'
-    },
-    {
-      command: '/video',
-      desp: 'stableDiffusion 视频 短片'
-    },
-    // {
-    //   command: '/doc',
-    //   desp: '使用 AI 与文档对话，将文档发送至聊天窗口等待返回 embeddings 成功后，即可开始'
-    // },
-    {
-      command: '/speech',
-      desp: '文字转语音 说话 说'
-    },
-    {
-      command: '/search',
-      desp: '搜索查询互联网内容进行回答'
-    },
-    {
-      command: '/流程图',
-      desp: '生成流程图'
-    },
-    {
-      command: '/song',
-      desp: '歌曲 听歌 唱歌'
-    },
-    {
-      command: '/ci',
-      desp: 'code innerpeter run'
-    },
-    {
-      command: '/role',
-      desp: 'role'
-    },
-    {
-      command: '/help',
-      desp: '帮助信息'
-    },
-
-  ]
 
   let hitCommand = false
   let userCommand = null
 
   if (prompt.startsWith("/")) {
     userCommand = prompt.split(' ')[0].trim()
-    const commands = keywords.map(keyword => keyword.command);
+    const commands = KEYWORDS.map(keyword => keyword.command);
     hitCommand = commands.includes(userCommand)
     prompt = (hitCommand ? prompt.replace(userCommand, '') : prompt).trim();
   } else {
-    const nlCommand = await naturalLanguageToCommand(prompt, keywords)
-    if (nlCommand.command) {
+    const result = await promptToCommand(prompt, KEYWORDS, openai)
+    if (result.command) {
       hitCommand = true
-      prompt = nlCommand.prompt
-      userCommand = nlCommand.command
+      prompt = result.prompt
+      userCommand = result.command
     }
   }
 
@@ -361,13 +268,13 @@ async function reply(target, content) {
       case '/search':
         const searchResult = await duckduckgo(prompt)
         if (searchResult) {
-          const res = await chatWithHtml(await llm(), searchResult, prompt);
+          const res = await chatWithHtml(chatgpt, searchResult, prompt);
           await send(target, res)
         }
         break;
 
       case '/流程图':
-        const code = await getMermaidCode(await llm(), prompt)
+        const code = await getMermaidCode(chatgpt, prompt)
         const svg = renderMermaidSVG(code)
         await send(target, svg)
         const editUrl = `https://mermaid-js.github.io/mermaid-live-editor/#/edit/${svg.remoteUrl.split('https://mermaid.ink/img/')[1]}`
@@ -379,11 +286,6 @@ async function reply(target, content) {
         const mp3Message = await silkEncoder(mp3, 59)
 
         await send(target, mp3Message)
-        break;
-      case '/help':
-        let helpText = keywords.map(keyword => `${keyword.command}   ${keyword.desp}`).join(`\n${'-'.repeat(20)}\n`);
-        helpText = helpText.concat(`\n${'-'.repeat(20)}\n 你也可以直接通过自然语言触发以上命令与我对话`)
-        await send(target, helpText)
         break;
       case '/ci':
         const { content, files } = await code_innerpeter_run(prompt)
@@ -397,6 +299,11 @@ async function reply(target, content) {
         break;
       case '/role':
         await send(target, setHackRole(prompt))
+        break;
+      case '/help':
+        let helpText = KEYWORDS.map(keyword => `${keyword.command}   ${keyword.desp}`).join(`\n${'-'.repeat(20)}\n`);
+        helpText = helpText.concat(`\n${'-'.repeat(20)}\n 你也可以直接通过自然语言触发以上命令与我对话`)
+        await send(target, helpText)
         break;
       default:
         await chatgptReply(target, prompt);
@@ -417,8 +324,7 @@ async function chatgptReply(target, prompt) {
   opts.timeoutMs = 2 * 60 * 1000;
   let res = { text: "" }
   try {
-    const api = await llm()
-    res = await api.sendMessage(prompt, opts);
+    res = await chatgpt.sendMessage(prompt, opts);
   } catch (error) {
     res.text = error.message
   }
@@ -454,63 +360,4 @@ async function send(contact, message) {
   } catch (e) {
     console.error(e);
   }
-}
-
-
-
-async function naturalLanguageToCommand(nl, keywords) {
-  if (nl.startsWith('/help')) return nl
-  const prompt = `Use the following context to answer the final question. The format is json,
-   if you don't know the answer, just say "{}", don't try to make up the answer, and don't have any explanation.
-
-      # 配置开始
-      ${JSON.stringify(keywords)}
-      #配置结束
-      
-      Question: 我想画一个汤姆猫 
-      Helpful Answer: {"command":"/画图","prompt":"一个汤姆猫"} 
-
-      Question:  ${nl}
-      Helpful Answer:
-      
-  `
-  const api = await llm('webVersionApi')
-  const { text } = await api.sendMessage(prompt)
-  let command = {}
-  try {
-    const regex = /\{.*?\}/;
-    const match = text.match(regex);
-    if (match) {
-      const extractedJson = match[0];
-      command = JSON.parse(extractedJson)
-      if (command.command == '/help') {
-        command.command = undefined
-      }
-    } else {
-      console.log("No match found.");
-    }
-  } catch (error) {
-    console.log(`naturalLanguageToCommand has error:${text} ${error}`)
-  }
-
-  return command
-}
-
-
-async function llm(id) {
-  if ((id == "gpt4" || defaultAI == "gpt4") && canUseGpt4()) {
-    return api_map["gpt4"]
-  }
-  const currentAI = id || defaultAI
-  if (currentAI == 'gpt3') {
-    const keys = await keyProvider()
-    gpt3.apiKey = random(keys)
-  }
-  return api_map[currentAI]
-}
-
-function canUseGpt4() {
-  const now = Date.now();
-  const minuteInMillis = 60 * 1000; // 1 minute in milliseconds
-  return !lastGpt4UsageTime || now - lastGpt4UsageTime >= minuteInMillis;
 }

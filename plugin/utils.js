@@ -139,22 +139,64 @@ async function silkDecoder(params) {
 
 function retry(fn, retriesLeft = 3, interval = 3000) {
     return new Promise((resolve, reject) => {
-      fn()
-        .then(resolve)
-        .catch((error) => {
-          console.log(error,'\nretry...')  
-          setTimeout(() => {
-            if (retriesLeft === 1) {
-              // 如果重试次数已用完，那么reject
-              reject(`maximum retries exceeded ${error}`);
-              return;
-            }
-  
-            // 如果还有重试次数，那么再次尝试
-            retry(fn, retriesLeft - 1, interval).then(resolve, reject);
-          }, interval)
-        });
+        fn()
+            .then(resolve)
+            .catch((error) => {
+                console.log(error, '\nretry...')
+                setTimeout(() => {
+                    if (retriesLeft === 1) {
+                        // 如果重试次数已用完，那么reject
+                        reject(`maximum retries exceeded ${error}`);
+                        return;
+                    }
+
+                    // 如果还有重试次数，那么再次尝试
+                    retry(fn, retriesLeft - 1, interval).then(resolve, reject);
+                }, interval)
+            });
     });
-  }
-export { hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage ,retry};
+}
+
+
+async function promptToCommand(prompt, keywords, openai) {
+    if (prompt.startsWith('/help')) return prompt
+    const systemPrompt = `Use below config match json. The format is json,
+     if you don't know the answer, just say {"command":"/c","prompt":"${prompt}"},
+     don't try to make up the answer, and don't have any explanation.
+  
+        ### config start
+        ${JSON.stringify(keywords)}
+        ### config end
+    `
+    const response = await openai.createChatCompletion(
+        {
+            model: "gpt-3.5-turbo-16k",
+            messages: [
+                { "role": "system", "content": systemPrompt },
+                { "role": "user", "content": "我想画一个汤姆猫" },
+                { "role": "assistant", "content": `{"command":"/画图","prompt":"一个汤姆猫"}` },
+                { "role": "user", "content": prompt },
+            ],
+            temperature: 0.8,
+        }
+    )
+
+    const text = response.data.choices[0].message.content;
+    let command = {}
+    try {
+        const regex = /\{.*?\}/;
+        const match = text.match(regex);
+        if (match) {
+            const extractedJson = match[0];
+            command = JSON.parse(extractedJson)
+        } else {
+            console.log("promptToCommand No match found.");
+        }
+    } catch (error) {
+        console.log(`promptToCommand has error:${text} ${error}`)
+    }
+
+    return command
+}
+export { promptToCommand, hasChinese, imageMessage, pluginSogouEmotion, runCommand, saveFile, silkDecoder, silkEncoder, splitStringByLength, transToEnglish, videoMessage, retry };
 
