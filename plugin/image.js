@@ -73,7 +73,10 @@ export async function midjourney(prompt, wechat) {
         const api = await fetch(url, {
             body: JSON.stringify({ "prompt": prompt }),
             method: 'post',
-            headers: { "Content-Type": "application/json" }
+            headers: {
+                "Content-Type": "application/json",
+                "mj-api-secret": process.env.MJ_API_KEY
+            }
         });
 
         const res = await api.json()
@@ -84,7 +87,7 @@ export async function midjourney(prompt, wechat) {
             let taskUrl = `https://${baseUrl}/mj/task/${result}/fetch`
             return await getMjResult(taskUrl)
         }
-        
+
         throw Error(`任务：${result} ${description}`)
     } catch (error) {
         console.log(error)
